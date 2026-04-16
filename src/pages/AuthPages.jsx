@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login as apiLogin, register as apiRegister } from "../lib/api";
 import { Field, PrimaryButton, SectionCard, SecondaryButton, inputClassName } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
 
 function AuthSplit({ eyebrow, title, subtitle, sideTitle, sideText, children }) {
   return (
@@ -98,6 +99,7 @@ export function LandingPage() {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -115,6 +117,7 @@ export function LoginPage() {
         return;
       }
 
+      await refreshProfile();
       navigate(`/${user.role}/dashboard`, { replace: true });
     } catch (loginError) {
       setError(loginError?.message || "Login failed. Please try again.");

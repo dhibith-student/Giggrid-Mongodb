@@ -26,9 +26,7 @@ const userSchema = new mongoose.Schema(
     },
     company_name: { type: String, default: null },
     company_website: { type: String, default: null },
-    migrated_from_supabase: { type: Boolean, default: false },
     needs_password_reset: { type: Boolean, default: false },
-    legacy_auth_user_id: { type: String, default: null },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

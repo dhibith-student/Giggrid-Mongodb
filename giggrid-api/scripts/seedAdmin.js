@@ -20,7 +20,6 @@ async function seedAdmin() {
     existing.role = "admin";
     existing.full_name = existing.full_name || "GigGrid Admin";
     existing.needs_password_reset = false;
-    existing.migrated_from_supabase = false;
     await existing.save();
     console.log(`Admin user ensured: ${email} / ${password}`);
     process.exit(0);

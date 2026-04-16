@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL;
 const TOKEN_KEY = "giggrid_token";
 
 function getHeaders(includeJson = true) {

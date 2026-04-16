@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
+import {
+  createProject,
+  getBidsByProject,
+  getClientProjects,
+  rejectAllBidsForProject,
+  rejectOtherBids,
+  updateBid,
+  updateProject,
+} from "../lib/api";
 import { EmptyState, Field, PageShell, PrimaryButton, SectionCard, StatCard, StatusPill, inputClassName } from "../components/ui";
 
 const categories = [
@@ -107,17 +115,8 @@ function useClientProjects() {
 
     const loadProjects = async () => {
       setState((current) => ({ ...current, loading: true, error: "" }));
-
       try {
-        const { data, error } = await supabase
-          .from("projects")
-          .select("*")
-          .eq("client_id", profile.id)
-          .neq("status", "removed")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
+        const data = await getClientProjects(profile.id);
         if (active) {
           setState({ loading: false, projects: data || [], error: "" });
         }
@@ -143,16 +142,7 @@ function useClientProjects() {
 }
 
 async function fetchProjectBids(projectId) {
-  const { data, error } = await supabase
-    .from("bids")
-    .select("id, bid_amount, proposal, status, freelancer_id, users(full_name, email)")
-    .eq("project_id", projectId);
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
+  return getBidsByProject(projectId);
 }
 
 function useProjectBids(projects) {
@@ -587,11 +577,7 @@ export function PostProjectPage() {
     setMessage("");
 
     try {
-      const { error } = await supabase.from("projects").insert([{ ...form, client_id: profile.id, status: "open", payment_status: "not_deposited" }]);
-      if (error) {
-        setMessage(error.message);
-        return;
-      }
+      await createProject({ ...form });
       setMessage("Project posted successfully.");
       setForm({ title: "", description: "", budget: "", category: "" });
     } catch (error) {
@@ -641,15 +627,9 @@ export function ManageProjectsPage() {
 
   const acceptBid = async (projectId, bid) => {
     try {
-      const approveResult = await supabase.from("bids").update({ status: "approved" }).eq("id", bid.id);
-      if (approveResult.error) throw approveResult.error;
-
-      const rejectResult = await supabase.from("bids").update({ status: "rejected" }).eq("project_id", projectId).neq("id", bid.id);
-      if (rejectResult.error) throw rejectResult.error;
-
-      const projectResult = await supabase.from("projects").update({ status: "closed" }).eq("id", projectId);
-      if (projectResult.error) throw projectResult.error;
-
+      await updateBid(bid.id, { status: "approved" });
+      await rejectOtherBids(projectId, bid.id);
+      await updateProject(projectId, { status: "closed" });
       refresh();
     } catch (error) {
       console.error("Failed to accept bid:", error);
@@ -658,8 +638,7 @@ export function ManageProjectsPage() {
 
   const rejectBid = async (bidId) => {
     try {
-      const result = await supabase.from("bids").update({ status: "rejected" }).eq("id", bidId);
-      if (result.error) throw result.error;
+      await updateBid(bidId, { status: "rejected" });
       refresh();
     } catch (error) {
       console.error("Failed to reject bid:", error);
@@ -668,12 +647,8 @@ export function ManageProjectsPage() {
 
   const removeProject = async (projectId) => {
     try {
-      const rejectResult = await supabase.from("bids").update({ status: "rejected" }).eq("project_id", projectId);
-      if (rejectResult.error) throw rejectResult.error;
-
-      const projectResult = await supabase.from("projects").update({ status: "removed" }).eq("id", projectId);
-      if (projectResult.error) throw projectResult.error;
-
+      await rejectAllBidsForProject(projectId);
+      await updateProject(projectId, { status: "removed" });
       refresh();
     } catch (error) {
       console.error("Failed to remove project:", error);
@@ -772,8 +747,7 @@ export function ClientActiveProjectsPage() {
 
   const updatePayment = async (projectId, payment_status) => {
     try {
-      const result = await supabase.from("projects").update({ payment_status }).eq("id", projectId);
-      if (result.error) throw result.error;
+      await updateProject(projectId, { payment_status });
       refresh();
     } catch (error) {
       console.error("Failed to update payment:", error);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
+import { updateUserProfile } from "../lib/api";
 import { Field, PageShell, PrimaryButton, SectionCard, StatusPill, inputClassName } from "../components/ui";
 
 const categories = [
@@ -62,23 +62,15 @@ export function ProfilePage() {
     setError("");
 
     try {
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          full_name: form.fullName,
-          phone: form.phone,
-          bio: form.bio,
-          qualification: form.qualification,
-          preferences: form.preferences.join(", "),
-          company_name: isClient ? form.companyName : null,
-          company_website: isClient ? form.companyWebsite : null,
-        })
-        .eq("id", profile.id);
-
-      if (updateError) {
-        throw updateError;
-      }
-
+      await updateUserProfile(profile.id, {
+        full_name: form.fullName,
+        phone: form.phone,
+        bio: form.bio,
+        qualification: form.qualification,
+        preferences: form.preferences.join(", "),
+        company_name: isClient ? form.companyName : null,
+        company_website: isClient ? form.companyWebsite : null,
+      });
       await refreshProfile();
       setMessage("Profile updated successfully.");
     } catch (updateError) {

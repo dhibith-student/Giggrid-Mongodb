@@ -3,7 +3,6 @@ import { useAuth } from "../context/AuthContext";
 import { EmptyState, PageShell, PrimaryButton, SectionCard, StatCard, StatusPill } from "../components/ui";
 import { AdminModal, AdminTable } from "../components/admin/AdminUi";
 import { closeProject, fetchAdminWorkspace, updateBidStatus } from "../lib/admin";
-import { supabase } from "../lib/supabase";
 
 function useAdminWorkspace() {
   const [state, setState] = useState({
@@ -708,13 +707,12 @@ export function AdminAnalyticsPage() {
 }
 
 export function AdminProfilePage() {
-  const { profile } = useAuth();
+  const { logout, profile } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    localStorage.removeItem("selectedRole");
-    await supabase.auth.signOut();
+    logout();
     window.location.href = "/login";
   };
 

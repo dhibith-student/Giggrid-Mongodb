@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getSupabaseDebugInfo, supabase, testSupabaseConnection } from "../lib/supabase";
+import { login as apiLogin, register as apiRegister } from "../lib/api";
 import { Field, PrimaryButton, SectionCard, SecondaryButton, inputClassName } from "../components/ui";
 
 function AuthSplit({ eyebrow, title, subtitle, sideTitle, sideText, children }) {
@@ -108,70 +108,16 @@ export function LoginPage() {
     setError("");
 
     try {
-      console.log("STEP 1: Starting auth");
-      console.log("Supabase config:", getSupabaseDebugInfo());
-      const test = await testSupabaseConnection();
-      if (test.error) {
-        throw test.error;
-      }
+      const user = await apiLogin(form.email, form.password);
 
-      console.log("STEP 2: Calling Supabase");
-      const { data, error: authError } = await supabase.auth.signInWithPassword(form);
-      console.log("STEP 3: Supabase response", data, authError);
-
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-
-      if (!data?.user?.id) {
-        setError("Unable to establish your session.");
-        return;
-      }
-
-      if (!data?.session) {
-        setError("Your session was not created correctly. Please try again.");
-        return;
-      }
-
-      console.log("STEP 4: After auth success");
-      console.log("Login success:", { userId: data.user.id, email: data.user.email });
-
-      const { data: profile, error: profileError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-
-      if (profileError) {
-        console.error("Failed to load profile after login:", profileError);
-        setError(profileError.message || "Unable to load your profile.");
-        return;
-      }
-
-      console.log("Profile data:", profile);
-
-      if (!profile) {
-        setError("Profile not found for this account.");
-        return;
-      }
-
-      if (!profile.role) {
+      if (!user?.role) {
         setError("User role is missing for this account.");
         return;
       }
 
-      const destination = `/${profile.role}/dashboard`;
-      console.log("Navigating to:", destination);
-      navigate(destination, { replace: true });
+      navigate(`/${user.role}/dashboard`, { replace: true });
     } catch (loginError) {
-      console.error("CRITICAL ERROR:", loginError);
-      const message =
-        loginError?.message?.includes("Failed to fetch")
-          ? "Unable to reach Supabase. Check your VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, and network connection."
-          : loginError?.message || "Login failed. Please try again.";
-
-      setError(message);
+      setError(loginError?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -243,55 +189,19 @@ export function RegisterPage() {
     setError("");
 
     try {
-      console.log("STEP 1: Starting auth");
-      console.log("Supabase config:", getSupabaseDebugInfo());
-      const test = await testSupabaseConnection();
-      if (test.error) {
-        throw test.error;
-      }
-
-      console.log("STEP 2: Calling Supabase");
-      const { data, error: authError } = await supabase.auth.signUp({
+      await apiRegister({
         email: form.email,
         password: form.password,
+        full_name: form.fullName,
+        phone: form.phone,
+        qualification: form.qualification,
+        preferences: form.preferences.join(", "),
+        bio: form.bio,
+        role: selectedRole,
       });
-      console.log("STEP 3: Supabase response", data, authError);
-
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-
-      if (!data?.user?.id) {
-        setError("User account was created without a profile id.");
-        return;
-      }
-
-      console.log("STEP 4: After auth success");
-
-      const { error: insertError } = await supabase.from("users").insert([
-        {
-          id: data.user.id,
-          email: form.email,
-          full_name: form.fullName,
-          phone: form.phone,
-          qualification: form.qualification,
-          preferences: form.preferences.join(", "),
-          bio: form.bio,
-          role: selectedRole,
-        },
-      ]);
-
-      console.log("Insert response:", insertError);
-
-      if (insertError) {
-        setError(insertError.message);
-        return;
-      }
 
       navigate("/login");
     } catch (registerError) {
-      console.error("CRITICAL ERROR:", registerError);
       setError(registerError?.message || "Unexpected error");
     } finally {
       setLoading(false);

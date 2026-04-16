@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../lib/supabase";
 
 const adminNavItems = [
   { label: "Dashboard", to: "/admin/dashboard" },
@@ -21,7 +20,7 @@ function getPageTitle(pathname) {
 }
 
 export function AdminLayout() {
-  const { loading, profile, session } = useAuth();
+  const { loading, logout, profile, session } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pageTitle = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
@@ -35,8 +34,7 @@ export function AdminLayout() {
   }
 
   const handleLogout = async () => {
-    localStorage.removeItem("selectedRole");
-    await supabase.auth.signOut();
+    logout();
     window.location.href = "/login";
   };
 

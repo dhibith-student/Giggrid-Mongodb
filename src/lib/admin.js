@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { getAllBids, getAllProjects, getAllUsers, updateBid, updateProject } from "./api";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -212,19 +212,7 @@ function buildAnalytics(projectRows, bidRows, clientRows, freelancerRows) {
 }
 
 export async function fetchAdminWorkspace() {
-  const [usersResult, projectsResult, bidsResult] = await Promise.all([
-    supabase.from("users").select("*"),
-    supabase.from("projects").select("*"),
-    supabase.from("bids").select("*"),
-  ]);
-
-  if (usersResult.error) throw usersResult.error;
-  if (projectsResult.error) throw projectsResult.error;
-  if (bidsResult.error) throw bidsResult.error;
-
-  const users = asArray(usersResult.data);
-  const projects = asArray(projectsResult.data);
-  const bids = asArray(bidsResult.data);
+  const [users, projects, bids] = await Promise.all([getAllUsers(), getAllProjects(), getAllBids()]);
   const userMap = createUserMap(users);
   const projectMap = createProjectMap(projects);
 
@@ -249,17 +237,9 @@ export async function fetchAdminWorkspace() {
 }
 
 export async function updateBidStatus(bidId, status) {
-  const { error } = await supabase.from("bids").update({ status }).eq("id", bidId);
-
-  if (error) {
-    throw error;
-  }
+  await updateBid(bidId, { status });
 }
 
 export async function closeProject(projectId) {
-  const { error } = await supabase.from("projects").update({ status: "closed" }).eq("id", projectId);
-
-  if (error) {
-    throw error;
-  }
+  await updateProject(projectId, { status: "closed" });
 }

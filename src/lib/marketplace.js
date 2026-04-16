@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { getBidsByFreelancer, getOpenProjects, getProjectsByIds } from "./api";
 
 export function classifyFreelancerProjects(openProjects, bids, preferences) {
   const biddedIds = new Set(bids.map((bid) => bid.project_id));
@@ -17,26 +17,12 @@ export function classifyFreelancerProjects(openProjects, bids, preferences) {
 }
 
 export async function fetchFreelancerWorkspace(userId, preferences) {
-  const [openProjectsResult, bidsResult, bidProjectsResult] = await Promise.all([
-    supabase.from("projects").select("*").eq("status", "open").order("created_at", { ascending: false }),
-    supabase
-      .from("bids")
-      .select("id, project_id, status, bid_amount, proposal")
-      .eq("freelancer_id", userId)
-      .order("created_at", { ascending: false }),
-    supabase.from("projects").select("*").order("created_at", { ascending: false }),
-  ]);
-
-  if (openProjectsResult.error) throw openProjectsResult.error;
-  if (bidsResult.error) throw bidsResult.error;
-  if (bidProjectsResult.error) throw bidProjectsResult.error;
-
-  const openProjects = openProjectsResult.data;
-  const bids = bidsResult.data;
-  const bidProjects = bidProjectsResult.data;
+  const [openProjects, bids] = await Promise.all([getOpenProjects(), getBidsByFreelancer(userId)]);
+  const relatedProjectIds = [...new Set((bids || []).map((bid) => bid.project_id).filter(Boolean))];
+  const relatedProjects = await getProjectsByIds(relatedProjectIds);
 
   const allBids = bids || [];
-  const projectMap = new Map((bidProjects || []).map((project) => [project.id, project]));
+  const projectMap = new Map([...(openProjects || []), ...(relatedProjects || [])].map((project) => [project.id, project]));
   const { preferred, others } = classifyFreelancerProjects(openProjects || [], allBids, preferences);
 
   const pipeline = [];

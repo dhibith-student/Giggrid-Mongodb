@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { fetchFreelancerWorkspace } from "../lib/marketplace";
-import { supabase } from "../lib/supabase";
+import { createBid } from "../lib/api";
 import { EmptyState, Field, PageShell, PrimaryButton, SectionCard, StatCard, StatusPill, inputClassName } from "../components/ui";
 
 function useFreelancerData() {
@@ -125,20 +125,7 @@ export function BrowseProjectsPage() {
     setMessage("");
 
     try {
-      const { error } = await supabase.from("bids").insert([
-        {
-          project_id: projectId,
-          freelancer_id: profile.id,
-          bid_amount: form.bid_amount,
-          proposal: form.proposal,
-          status: "pending",
-        },
-      ]);
-
-      if (error) {
-        setMessage(error.code === "23505" ? "You have already submitted a bid for this project." : error.message);
-        return;
-      }
+      await createBid({ project_id: projectId, bid_amount: Number(form.bid_amount), proposal: form.proposal });
 
       setForms((state) => {
         const nextState = { ...state };

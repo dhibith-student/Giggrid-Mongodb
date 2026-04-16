@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { getCurrentUser, isAuthenticated, logout as apiLogout } from "../lib/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -12,53 +11,32 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    const loadProfile = async (userId) => {
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", userId)
-          .maybeSingle();
-
-        if (error) {
-          throw error;
-        }
-
-        if (mounted) {
-          setProfile(data || null);
-          setError(data ? "" : "Profile not found for the authenticated user.");
-        }
-      } catch (error) {
-        console.error("Failed to load user profile:", error);
-        if (mounted) {
-          setProfile(null);
-          setError(error?.message || "Failed to load user profile.");
-        }
-      }
-    };
-
-    const syncSessionState = async (nextSession) => {
+    const loadUser = async () => {
       try {
         if (mounted) {
           setLoading(true);
           setError("");
         }
 
-        if (!mounted) return;
-        setSession(nextSession);
-
-        if (nextSession?.user) {
-          await loadProfile(nextSession.user.id);
-        } else {
-          setProfile(null);
-          setError("");
+        if (!isAuthenticated()) {
+          if (mounted) {
+            setProfile(null);
+            setLoading(false);
+          }
+          return;
         }
-      } catch (error) {
-        console.error("Failed to sync auth session:", error);
+
+        const user = await getCurrentUser();
         if (mounted) {
-          setSession(null);
+          setProfile(user || null);
+          setError(user ? "" : "Profile not found for the authenticated user.");
+        }
+      } catch (loadError) {
+        console.error("Failed to load auth session:", loadError);
+        apiLogout();
+        if (mounted) {
           setProfile(null);
-          setError(error?.message || "Failed to sync auth session.");
+          setError(loadError?.message || "Failed to load auth session.");
         }
       } finally {
         if (mounted) {
@@ -67,77 +45,54 @@ export function AuthProvider({ children }) {
       }
     };
 
-    const loadSession = async () => {
-      try {
-        if (mounted) {
-          setLoading(true);
-          setError("");
-        }
+    loadUser();
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          throw error;
-        }
-
-        await syncSessionState(data.session);
-      } catch (error) {
-        console.error("Failed to load auth session:", error);
-        if (mounted) {
-          setSession(null);
+    const onStorage = (event) => {
+      if (event.key === "giggrid_token") {
+        if (!mounted) return;
+        if (event.newValue) {
+          void loadUser();
+        } else {
           setProfile(null);
-          setError(error?.message || "Failed to load auth session.");
+          setError("");
           setLoading(false);
         }
       }
     };
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (mounted) {
-        setLoading(true);
-        setError("");
-      }
-
-      // Supabase warns against awaiting other Supabase calls inside this callback,
-      // because it can deadlock the client after a successful auth event.
-      window.setTimeout(() => {
-        void syncSessionState(nextSession);
-      }, 0);
-    });
+    window.addEventListener("storage", onStorage);
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
   const value = useMemo(
     () => ({
-      session,
-      user: session?.user ?? null,
+      session: profile ? { user: profile } : null,
+      user: profile,
       profile,
       loading,
       error,
+      logout: () => {
+        apiLogout();
+        setProfile(null);
+      },
       refreshProfile: async () => {
-        if (!session?.user?.id) return;
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("Failed to refresh profile:", error);
+        if (!isAuthenticated()) {
+          setProfile(null);
           return;
         }
 
-        setProfile(data || null);
+        try {
+          const user = await getCurrentUser();
+          setProfile(user || null);
+        } catch (refreshError) {
+          console.error("Failed to refresh profile:", refreshError);
+        }
       },
     }),
-    [error, loading, profile, session],
+    [error, loading, profile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

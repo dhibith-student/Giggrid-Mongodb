@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { getBidsByProject, getClientProjects } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
 const navByRole = {
@@ -36,7 +36,7 @@ function BellIcon() {
 }
 
 export function Navbar() {
-  const { profile } = useAuth();
+  const { logout, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -56,15 +56,7 @@ export function Navbar() {
       }
 
       try {
-        const { data: projects, error: projectError } = await supabase
-          .from("projects")
-          .select("id, title, status, payment_status")
-          .eq("client_id", profile.id)
-          .neq("status", "removed")
-          .order("created_at", { ascending: false });
-
-        if (projectError) throw projectError;
-
+        const projects = await getClientProjects(profile.id);
         const projectIds = (projects || []).map((project) => project.id);
         if (!projectIds.length) {
           if (active) {
@@ -73,13 +65,8 @@ export function Navbar() {
           return;
         }
 
-        const { data: bids, error: bidsError } = await supabase
-          .from("bids")
-          .select("id, bid_amount, status, project_id, users(full_name)")
-          .in("project_id", projectIds)
-          .order("created_at", { ascending: false });
-
-        if (bidsError) throw bidsError;
+        const bidGroups = await Promise.all(projectIds.map((projectId) => getBidsByProject(projectId)));
+        const bids = bidGroups.flat();
 
         const projectMap = new Map((projects || []).map((project) => [project.id, project]));
         const nextNotifications = [];
@@ -135,8 +122,7 @@ export function Navbar() {
   }, [notificationsOpen]);
 
   const handleLogout = async () => {
-    localStorage.removeItem("selectedRole");
-    await supabase.auth.signOut();
+    logout();
     window.location.href = "/";
   };
 
